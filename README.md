@@ -14,12 +14,13 @@ For Flipper Zero device.
 
 ## Screenshots
 
-![Moon Phase App - Main Screen](screenshots/main-screen.png)
-![Moon Phase App - Details View](screenshots/details-view.png)
+![Moon Phase App Screenshot 1](screenshots/screen1.png)
+![Moon Phase App Screenshot 2](screenshots/screen1.png)
 
-## Flipper Zero Catalog
+## 
 
-- TBC
+- [Flipper Zero Catalog]()
+- Download latest binary from ``/dist/p1x_moon_phases.fap```
 
 ## License
 
