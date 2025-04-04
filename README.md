@@ -15,7 +15,8 @@ For Flipper Zero device.
 ## Screenshots
 
 ![Moon Phase App Screenshot 1](screenshots/screen1.png)
-![Moon Phase App Screenshot 2](screenshots/screen1.png)
+
+![Moon Phase App Screenshot 2](screenshots/screen2.png)
 
 ## 
 
