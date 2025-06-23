@@ -1,5 +1,5 @@
 App(
-    appid="p1x_moon_phases",
+    appid="moon_phases",
     name="Moon Phases",
     apptype=FlipperAppType.EXTERNAL,
     entry_point="p1x_moon_phases_app",
