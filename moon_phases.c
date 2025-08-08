@@ -223,12 +223,11 @@ static void moon_phases_view_draw_callback(Canvas* canvas, void* model) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 6, AlignCenter, AlignCenter, phase_name);
 
+    // Draw date at bottom left
     char date_str[32];
     snprintf(date_str, sizeof(date_str), "%02d/%02d/%d", date.day, date.month, date.year);
-
-    // Add date at the bottom
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(canvas, 64, 60, AlignCenter, AlignCenter, date_str);
+    canvas_draw_str_aligned(canvas, 4, 60, AlignLeft, AlignCenter, date_str);
 
     // Draw navigation indicators if not at current date
     if(app_model->date_offset < 7) {
@@ -241,7 +240,8 @@ static void moon_phases_view_draw_callback(Canvas* canvas, void* model) {
         canvas_draw_str_aligned(canvas, 6, 32, AlignCenter, AlignCenter, "<");
     }
 
-    // Show relative date indicator
+    // Show relative date indicator at bottom right
+    canvas_set_font(canvas, FontSecondary);
     if(app_model->date_offset != 0) {
         char offset_str[32];
         if(app_model->date_offset > 0) {
@@ -249,11 +249,9 @@ static void moon_phases_view_draw_callback(Canvas* canvas, void* model) {
         } else {
             snprintf(offset_str, sizeof(offset_str), "%d days", (int)app_model->date_offset);
         }
-        canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str_aligned(canvas, 64, 50, AlignCenter, AlignCenter, offset_str);
+        canvas_draw_str_aligned(canvas, 124, 60, AlignRight, AlignCenter, offset_str);
     } else {
-        canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str_aligned(canvas, 64, 50, AlignCenter, AlignCenter, "Today");
+        canvas_draw_str_aligned(canvas, 124, 60, AlignRight, AlignCenter, "Today");
     }
 }
 
