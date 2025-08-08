@@ -27,33 +27,35 @@ typedef enum {
 } MoonPhase;
 
 typedef struct {
+    int32_t date_offset; // Days offset from current date (-7 to +7)
+} MoonPhasesModel;
+
+typedef struct {
     ViewDispatcher* view_dispatcher;
     Gui* gui;
     NotificationApp* notifications;
     View* view;
+    MoonPhasesModel* model;
 } MoonPhasesApp;
 
-// Calculate moon phase (0-7) based on current date
-static MoonPhase get_moon_phase() {
-    DateTime date;
-    furi_hal_rtc_get_datetime(&date);
-
+// Calculate moon phase (0-7) based on given date
+static MoonPhase get_moon_phase_for_date(DateTime* date) {
     // More accurate moon phase calculation
     // Based on a simplified astronomical algorithm
-    int year = date.year;
-    int month = date.month;
-    int day = date.day;
+    int year = date->year;
+    int month = date->month;
+    int day = date->day;
 
     // Calculate Julian date
     double jd;
     int a, b, c;
     double e, f;
-    
+
     if (month <= 2) {
         year--;
         month += 12;
     }
-    
+
     a = year / 100;
     b = a / 4;
     c = 2 - a + b;
@@ -63,12 +65,12 @@ static MoonPhase get_moon_phase() {
 
     // Use a more recent new moon reference date: January 6, 2000 at 18:14 UTC
     double days_since_new_moon = jd - 2451550.1L;
-    
+
     // Calculate the phase using modulo of a lunar cycle
     double lunar_cycle = 29.53059L; // days in lunar month
     double lunar_age = fmod(days_since_new_moon, lunar_cycle);
     if (lunar_age < 0.0L) lunar_age += lunar_cycle;
-    
+
     // Convert lunar age to moon phase
     // Each phase is approximately 3.69 days
     if (lunar_age < 1.84L) return MoonPhaseNewMoon;
@@ -130,24 +132,89 @@ static const char* get_moon_phase_name(MoonPhase phase) {
     }
 }
 
+// Add days to a DateTime structure
+static void add_days_to_date(DateTime* date, int32_t days) {
+    // Days in each month (non-leap year)
+    static const uint8_t days_in_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    
+    int32_t year = date->year;
+    int32_t month = date->month;
+    int32_t day = date->day;
+    
+    // Add or subtract days
+    day += days;
+    
+    // Handle going forward in time
+    while(day > 0) {
+        uint8_t days_this_month = days_in_month[month - 1];
+        
+        // Check for leap year February
+        if(month == 2) {
+            if((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+                days_this_month = 29;
+            }
+        }
+        
+        if(day <= days_this_month) {
+            break;
+        }
+        
+        day -= days_this_month;
+        month++;
+        
+        if(month > 12) {
+            month = 1;
+            year++;
+        }
+    }
+    
+    // Handle going backward in time
+    while(day <= 0) {
+        month--;
+        
+        if(month < 1) {
+            month = 12;
+            year--;
+        }
+        
+        uint8_t days_prev_month = days_in_month[month - 1];
+        
+        // Check for leap year February
+        if(month == 2) {
+            if((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+                days_prev_month = 29;
+            }
+        }
+        
+        day += days_prev_month;
+    }
+    
+    date->year = year;
+    date->month = month;
+    date->day = day;
+}
+
 // Custom view callback for drawing
-static void moon_phases_view_draw_callback(Canvas* canvas, void* context) {
-    UNUSED(context);
+static void moon_phases_view_draw_callback(Canvas* canvas, void* model) {
+    MoonPhasesModel* app_model = model;
     
     // Fill background with black
     canvas_set_color(canvas, ColorBlack);
     canvas_draw_box(canvas, 0, 0, 128, 64);
-    
+
     // Set text color to white
     canvas_set_color(canvas, ColorWhite);
-    
-    MoonPhase current_phase = get_moon_phase();
+
+    // Get current date and apply offset
+    DateTime date;
+    furi_hal_rtc_get_datetime(&date);
+    add_days_to_date(&date, app_model->date_offset);
+
+    MoonPhase current_phase = get_moon_phase_for_date(&date);
     const Icon* icon = get_moon_phase_icon(current_phase);
     const char* phase_name = get_moon_phase_name(current_phase);
-    
 
     // Draw moon phase icon - centered (icon size is 48x46)
-    // Cannot access icon->width directly, use hardcoded values as we know them
     canvas_set_color(canvas, ColorBlack);
     canvas_draw_icon(canvas, 64 - 24, 32 - 23, icon);  // 24 = 48/2, 23 = 46/2
     canvas_set_color(canvas, ColorWhite);
@@ -155,27 +222,86 @@ static void moon_phases_view_draw_callback(Canvas* canvas, void* context) {
     // Draw phase name at top with primary font
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 6, AlignCenter, AlignCenter, phase_name);
-    
-    DateTime date;
-    furi_hal_rtc_get_datetime(&date);
-    
+
     char date_str[32];
     snprintf(date_str, sizeof(date_str), "%02d/%02d/%d", date.day, date.month, date.year);
-    
+
     // Add date at the bottom
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 64, 60, AlignCenter, AlignCenter, date_str);
+
+    // Draw navigation indicators if not at current date
+    if(app_model->date_offset < 7) {
+        // Draw right arrow
+        canvas_draw_str_aligned(canvas, 122, 32, AlignCenter, AlignCenter, ">");
+    }
+    
+    if(app_model->date_offset > -7) {
+        // Draw left arrow
+        canvas_draw_str_aligned(canvas, 6, 32, AlignCenter, AlignCenter, "<");
+    }
+
+    // Show relative date indicator
+    if(app_model->date_offset != 0) {
+        char offset_str[32];
+        if(app_model->date_offset > 0) {
+            snprintf(offset_str, sizeof(offset_str), "+%d days", (int)app_model->date_offset);
+        } else {
+            snprintf(offset_str, sizeof(offset_str), "%d days", (int)app_model->date_offset);
+        }
+        canvas_set_font(canvas, FontSecondary);
+        canvas_draw_str_aligned(canvas, 64, 50, AlignCenter, AlignCenter, offset_str);
+    } else {
+        canvas_set_font(canvas, FontSecondary);
+        canvas_draw_str_aligned(canvas, 64, 50, AlignCenter, AlignCenter, "Today");
+    }
 }
 
 static bool moon_phases_view_input_callback(InputEvent* event, void* context) {
     MoonPhasesApp* app = context;
     bool consumed = false;
-    
-    if(event->type == InputTypeShort && event->key == InputKeyBack) {
-        view_dispatcher_stop(app->view_dispatcher);
-        consumed = true;
+
+    if(event->type == InputTypeShort) {
+        if(event->key == InputKeyBack) {
+            view_dispatcher_stop(app->view_dispatcher);
+            consumed = true;
+        } else if(event->key == InputKeyLeft) {
+            // Go back in time (max 7 days)
+            with_view_model(
+                app->view,
+                MoonPhasesModel * model,
+                {
+                    if(model->date_offset > -7) {
+                        model->date_offset--;
+                    }
+                },
+                true);
+            consumed = true;
+        } else if(event->key == InputKeyRight) {
+            // Go forward in time (max 7 days)
+            with_view_model(
+                app->view,
+                MoonPhasesModel * model,
+                {
+                    if(model->date_offset < 7) {
+                        model->date_offset++;
+                    }
+                },
+                true);
+            consumed = true;
+        } else if(event->key == InputKeyOk) {
+            // Reset to current date
+            with_view_model(
+                app->view,
+                MoonPhasesModel * model,
+                {
+                    model->date_offset = 0;
+                },
+                true);
+            consumed = true;
+        }
     }
-    
+
     return consumed;
 }
 
@@ -186,44 +312,59 @@ static void moon_phases_app_free(MoonPhasesApp* app) {
     view_dispatcher_free(app->view_dispatcher);
     furi_record_close(RECORD_GUI);
     furi_record_close(RECORD_NOTIFICATION);
+    free(app->model);
     free(app);
 }
 
 int32_t p1x_moon_phases_app(void* p) {
     UNUSED(p);
-    
+
     // Allocate and initialize app structure
     MoonPhasesApp* app = malloc(sizeof(MoonPhasesApp));
     memset(app, 0, sizeof(MoonPhasesApp));
     
+    // Allocate model
+    app->model = malloc(sizeof(MoonPhasesModel));
+    app->model->date_offset = 0; // Start at current date
+
     // Open GUI record
     app->gui = furi_record_open(RECORD_GUI);
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
-    
+
     // Create view dispatcher
     app->view_dispatcher = view_dispatcher_alloc();
-    
+
     // Create custom view
     app->view = view_alloc();
+    view_allocate_model(app->view, ViewModelTypeLocking, sizeof(MoonPhasesModel));
     view_set_context(app->view, app);
     view_set_draw_callback(app->view, moon_phases_view_draw_callback);
     view_set_input_callback(app->view, moon_phases_view_input_callback);
     
+    // Initialize the view model
+    with_view_model(
+        app->view,
+        MoonPhasesModel * model,
+        {
+            model->date_offset = 0;
+        },
+        true);
+
     // Add view to the view dispatcher
     view_dispatcher_add_view(app->view_dispatcher, 0, app->view);
     view_dispatcher_switch_to_view(app->view_dispatcher, 0);
-    
+
     // Set GUI and view dispatcher
     view_dispatcher_attach_to_gui(
         app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
-    
+
     // Main application loop
     notification_message(app->notifications, &sequence_display_backlight_on);
-    
+
     view_dispatcher_run(app->view_dispatcher);
-    
+
     // Clean up
     moon_phases_app_free(app);
-    
+
     return 0;
 }
