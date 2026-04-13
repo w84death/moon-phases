@@ -198,6 +198,8 @@ static void add_days_to_date(DateTime* date, int32_t days) {
 static void moon_phases_view_draw_callback(Canvas* canvas, void* model) {
     MoonPhasesModel* app_model = model;
 
+    canvas_reset(canvas);
+
     // Fill background with black
     canvas_set_color(canvas, ColorBlack);
     canvas_draw_box(canvas, 0, 0, 128, 64);
@@ -215,9 +217,9 @@ static void moon_phases_view_draw_callback(Canvas* canvas, void* model) {
     const char* phase_name = get_moon_phase_name(current_phase);
 
     // Draw moon phase icon - centered (icon size is 48x46)
-    canvas_set_color(canvas, ColorBlack);
-    canvas_draw_icon(canvas, 64 - 24, 32 - 23, icon);  // 24 = 48/2, 23 = 46/2
+    canvas_set_bitmap_mode(canvas, true);
     canvas_set_color(canvas, ColorWhite);
+    canvas_draw_icon(canvas, 64 - 24, 32 - 23, icon);  // 24 = 48/2, 23 = 46/2
 
     // Draw phase name at top with primary font
     canvas_set_font(canvas, FontPrimary);
